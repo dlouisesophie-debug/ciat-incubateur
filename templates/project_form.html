@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Nouveau projet' if new else 'Modifier le dossier' }}{% endblock %}
+{% block content %}
+<h1>{{ 'Déposer une idée' if new else 'Modifier le dossier' }}</h1>
+<form class="card" method="post" style="max-width:760px"><input type="hidden" name="csrf" value="{{ csrf() }}">
+  <label for="title">Titre du projet *</label><input id="title" name="title" type="text" required minlength="3" maxlength="150" value="{{ p.get('title') or '' }}">
+  <div class="grid c3">
+    <div><label for="domain">Domaine</label><select id="domain" name="domain"><option value="">—</option>{% for d in DOMAINES %}<option {{ 'selected' if p.get('domain') == d }}>{{ d }}</option>{% endfor %}</select></div>
+    <div><label for="stage">Stade d'avancement</label><select id="stage" name="stage"><option value="">—</option>{% for s in STADES %}<option {{ 'selected' if p.get('stage') == s }}>{{ s }}</option>{% endfor %}</select></div>
+    <div><label for="team_size">Taille de l'équipe</label><input id="team_size" name="team_size" type="number" min="1" max="50" value="{{ p.get('team_size') or '' }}"></div>
+  </div>
+  <label for="summary">Résumé (2 à 3 phrases)</label><textarea id="summary" name="summary" maxlength="600">{{ p.get('summary') or '' }}</textarea>
+  <label for="problem">Quel problème résolvez-vous ?</label><textarea id="problem" name="problem" maxlength="1500">{{ p.get('problem') or '' }}</textarea>
+  <label for="solution">Quelle est votre solution ?</label><textarea id="solution" name="solution" maxlength="1500">{{ p.get('solution') or '' }}</textarea>
+  <label for="target">Qui sont vos utilisateurs ou clients ?</label><textarea id="target" name="target" maxlength="800">{{ p.get('target') or '' }}</textarea>
+  <p class="row"><button class="btn" type="submit">Enregistrer</button>
+  <a class="btn secondary" href="{{ url_for('project_detail', pid=pid) if not new else url_for('projects') }}">Annuler</a></p>
+  <p class="small muted">Vous pourrez compléter le dossier plus tard : il reste en brouillon tant que vous ne l'avez pas soumis.</p>
+</form>
+{% endblock %}

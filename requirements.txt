@@ -1,0 +1,5 @@
+Flask>=3.0,<4
+openpyxl>=3.1
+reportlab>=4.0
+gunicorn>=22.0
+anthropic>=0.40   # facultatif : uniquement si ANTHROPIC_API_KEY est définie

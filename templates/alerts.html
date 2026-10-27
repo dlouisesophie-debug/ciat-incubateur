@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Alertes{% endblock %}
+{% block content %}
+<h1>Alertes</h1>
+<div class="card table-wrap"><h2>Jalons en retard ({{ late|length }})</h2>
+{% if late %}<table><thead><tr><th>Projet</th><th>Jalon</th><th>Échéance</th><th>Retard</th></tr></thead><tbody>
+{% for m in late %}<tr><td><a href="{{ url_for('project_detail', pid=m.pid) }}">{{ m.project }}</a></td><td>{{ m.title }}</td><td>{{ m.due_date|fr_date }}</td><td><span class="status late">{{ m.days_late }} jour(s)</span></td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="muted">Aucun jalon en retard. 👍</p>{% endif %}</div>
+{% if g.user.role in ('coordonnateur','mentor') %}
+<div class="card table-wrap"><h2>Suivis à réaliser (sous 14 jours ou en retard)</h2>
+{% if followups %}<table><thead><tr><th>Projet</th><th>Suivi</th><th>Échéance</th></tr></thead><tbody>
+{% for f in followups %}<tr><td><a href="{{ url_for('project_detail', pid=f.pid) }}">{{ f.project }}</a></td><td>{{ f.kind.replace('_',' ') }}</td><td>{{ f.due_date|fr_date }}{% if f.due_date < today %} <span class="status late">en retard</span>{% endif %}</td></tr>{% endfor %}
+</tbody></table>{% else %}<p class="muted">Aucun suivi à faire prochainement.</p>{% endif %}</div>
+{% endif %}
+{% endblock %}

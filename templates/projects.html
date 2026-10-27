@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Projets{% endblock %}
+{% block content %}
+<div class="row between"><h1>{{ 'Mes projets' if g.user.role == 'porteur' else 'Projets' }}</h1>
+  <div class="row">
+    {% if g.user.role == 'porteur' %}<a class="btn" href="{{ url_for('project_new') }}">+ Déposer une idée</a>{% endif %}
+    {% if g.user.role == 'coordonnateur' %}<a class="btn secondary" href="{{ url_for('export_xlsx') }}">Export Excel</a><a class="btn secondary" href="{{ url_for('export_list_pdf') }}">Synthèse PDF</a>{% endif %}
+  </div></div>
+{% if g.user.role != 'porteur' %}
+<form class="card filters" method="get">
+  <div><label for="q">Recherche</label><input id="q" type="search" name="q" value="{{ filters.get('q','') }}" placeholder="Titre ou porteur"></div>
+  <div><label for="status">Statut</label><select id="status" name="status"><option value="">Tous</option>{% for k, v in STATUTS.items() %}<option value="{{ k }}" {{ 'selected' if filters.get('status') == k }}>{{ v }}</option>{% endfor %}</select></div>
+  <div><label for="domain">Domaine</label><select id="domain" name="domain"><option value="">Tous</option>{% for d in DOMAINES %}<option {{ 'selected' if filters.get('domain') == d }}>{{ d }}</option>{% endfor %}</select></div>
+  <div><label for="cohort">Cohorte</label><select id="cohort" name="cohort"><option value="">Toutes</option>{% for c in cohorts %}<option {{ 'selected' if filters.get('cohort') == c }}>{{ c }}</option>{% endfor %}</select></div>
+  <div><button class="btn" type="submit">Filtrer</button></div>
+</form>
+{% endif %}
+<div class="card table-wrap">
+{% if projects %}
+<table><thead><tr><th>Projet</th>{% if g.user.role != 'porteur' %}<th>Porteur</th>{% endif %}<th>Domaine</th><th>Cohorte</th><th>Statut</th>{% if g.user.role in ('coordonnateur','evaluateur') %}<th>Note /100</th>{% endif %}{% if g.user.role != 'evaluateur' %}<th>Retards</th>{% endif %}</tr></thead><tbody>
+{% for p in projects %}<tr>
+  <td><a href="{{ url_for('project_detail', pid=p.id) }}"><strong>{{ p.title }}</strong></a></td>
+  {% if g.user.role != 'porteur' %}<td>{{ p.owner_name }}</td>{% endif %}
+  <td class="small">{{ p.domain or '—' }}</td><td>{{ p.cohort or '—' }}</td>
+  <td><span class="status {{ p.status }}">{{ STATUTS[p.status] }}</span></td>
+  {% if g.user.role in ('coordonnateur','evaluateur') %}<td>{{ p.avg_score if p.avg_score is not none else '—' }}</td>{% endif %}
+  {% if g.user.role != 'evaluateur' %}<td>{% if p.late %}<span class="status late">{{ p.late }} en retard</span>{% else %}—{% endif %}</td>{% endif %}
+</tr>{% endfor %}</tbody></table>
+{% else %}<p class="muted">Aucun projet à afficher{% if g.user.role == 'porteur' %}. Commencez par <a href="{{ url_for('project_new') }}">déposer votre idée</a>{% endif %}.</p>{% endif %}
+</div>
+{% endblock %}

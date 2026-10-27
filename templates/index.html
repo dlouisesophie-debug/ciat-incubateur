@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="hero">
+  <h1>De l'idée à l'entreprise, avec le CIAT</h1>
+  <p>Déposez votre projet, suivez son évaluation, rencontrez votre mentor et pilotez vos jalons depuis un seul espace.</p>
+  <div class="row"><a class="btn" href="{{ url_for('register') }}">Créer mon compte porteur</a><a class="btn secondary" href="{{ url_for('login') }}">Me connecter</a></div>
+</section>
+<div class="grid c4">
+  <div class="card"><h2>1. Dépôt</h2><p class="small muted">Renseignez votre dossier et joignez vos pièces. Un contrôle de complétude vous indique ce qui manque.</p></div>
+  <div class="card"><h2>2. Sélection</h2><p class="small muted">Le comité note votre projet selon une grille commune ; la décision vous est communiquée avec ses motifs.</p></div>
+  <div class="card"><h2>3. Accompagnement</h2><p class="small muted">Un mentor est affecté, des objectifs et des jalons sont fixés, avec preuves et alertes de retard.</p></div>
+  <div class="card"><h2>4. Suivi</h2><p class="small muted">Points à 3 et 6 mois : emplois créés, chiffre d'affaires, financements obtenus.</p></div>
+</div>
+{% endblock %}

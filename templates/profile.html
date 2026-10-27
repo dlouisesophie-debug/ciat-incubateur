@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Mon profil{% endblock %}
+{% block content %}
+<h1>Mon profil</h1>
+<div class="card" style="max-width:620px">
+  <p class="muted small">{{ g.user.email }} · {{ ROLES[g.user.role] }}</p>
+  <form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label for="name">Nom complet</label><input id="name" name="name" type="text" required value="{{ g.user.name }}">
+    <label for="phone">Téléphone</label><input id="phone" name="phone" type="text" value="{{ g.user.phone or '' }}">
+    <label for="organisation">Organisation</label><input id="organisation" name="organisation" type="text" value="{{ g.user.organisation or '' }}">
+    <label for="bio">Présentation</label><textarea id="bio" name="bio">{{ g.user.bio or '' }}</textarea>
+    <h3>Changer de mot de passe (facultatif)</h3>
+    <label for="old_password">Ancien mot de passe</label><input id="old_password" name="old_password" type="password" autocomplete="current-password">
+    <label for="new_password">Nouveau mot de passe</label><input id="new_password" name="new_password" type="password" minlength="8" autocomplete="new-password">
+    <p><button class="btn" type="submit">Enregistrer</button></p>
+  </form>
+</div>
+{% endblock %}

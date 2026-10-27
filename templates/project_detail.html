@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block title %}{{ p.title }}{% endblock %}
+{% block content %}
+{% set role = g.user.role %}
+{% set is_owner = role == 'porteur' %}
+<div class="row between">
+  <div>
+    <h1 style="margin-bottom:.1em">{{ p.title }}</h1>
+    <span class="status {{ p.status }}">{{ STATUTS[p.status] }}</span>
+    <span class="muted small">· {{ p.owner_name }}{% if p.cohort %} · cohorte {{ p.cohort }}{% endif %}{% if p.mentor_name %} · mentor : {{ p.mentor_name }}{% endif %}</span>
+  </div>
+  <div class="row">
+    {% if editable %}<a class="btn secondary" href="{{ url_for('project_edit', pid=p.id) }}">Modifier le dossier</a>{% endif %}
+    {% if role != 'evaluateur' and p.status not in ('brouillon', 'a_completer') %}<a class="btn secondary" href="{{ url_for('export_report', pid=p.id) }}">Compte rendu PDF</a>{% endif %}
+  </div>
+</div>
+
+{# ---------- Décision (visible par tous les acteurs autorisés) ---------- #}
+{% if decision %}
+<div class="card" style="border-left:5px solid var(--tan)">
+  <h2>Décision du comité</h2>
+  <p><span class="status {{ 'incube' if decision.decision == 'accepte' else decision.decision }}">{{ {'accepte': 'Accepté en incubation', 'refuse': 'Refusé', 'liste_attente': "Liste d'attente"}[decision.decision] }}</span>
+     <span class="muted small">le {{ decision.decided_at|fr_date }} · {{ decision.by }}</span></p>
+  <p>{{ decision.motivation }}</p>
+</div>
+{% endif %}
+
+{# ---------- Complétude ---------- #}
+{% if p.status in ('brouillon', 'a_completer', 'soumis', 'en_evaluation') %}
+<div class="card">
+  <div class="row between"><h2>Complétude du dossier : {{ comp.pct }} %</h2>
+    {% if editable %}
+    <form method="post" action="{{ url_for('project_submit', pid=p.id) }}" data-confirm="Une fois soumis, le dossier ne sera plus modifiable. Continuer ?"><input type="hidden" name="csrf" value="{{ csrf() }}">
+      <button class="btn" type="submit" {{ 'disabled' if not comp.complete }}>Soumettre au comité</button></form>{% endif %}</div>
+  <div class="progress {{ 'ok' if comp.complete }}"><span style="width:{{ comp.pct }}%"></span></div>
+  {% if not comp.complete %}<ul class="checklist">
+    {% for f in comp.missing_fields %}<li class="no">Champ manquant : {{ f }}</li>{% endfor %}
+    {% for d in comp.missing_docs %}<li class="no">Pièce manquante : {{ d }}</li>{% endfor %}</ul>
+  {% else %}<p class="small" style="color:var(--ok)">✔ Dossier complet.</p>{% endif %}
+</div>
+{% endif %}
+
+{# ---------- Dossier ---------- #}
+<div class="card"><h2>Présentation du projet</h2>
+  <dl class="kv">
+    <dt>Domaine</dt><dd>{{ p.domain or '—' }}</dd><dt>Stade</dt><dd>{{ p.stage or '—' }}</dd><dt>Équipe</dt><dd>{{ p.team_size or '—' }} personne(s)</dd>
+    <dt>Résumé</dt><dd>{{ p.summary or '—' }}</dd><dt>Problème</dt><dd>{{ p.problem or '—' }}</dd>
+    <dt>Solution</dt><dd>{{ p.solution or '—' }}</dd><dt>Public cible</dt><dd>{{ p.target or '—' }}</dd>
+    {% if p.submitted_at %}<dt>Soumis le</dt><dd>{{ p.submitted_at|fr_date }}</dd>{% endif %}
+  </dl>
+</div>
+
+{# ---------- Pièces ---------- #}
+<div class="card table-wrap"><h2>Pièces jointes</h2>
+  {% if docs %}<table><thead><tr><th>Type</th><th>Fichier</th><th>Ajouté le</th><th></th></tr></thead><tbody>
+  {% for d in docs %}<tr><td>{{ DOC_TYPES[d.doc_type] }}</td><td><a href="{{ url_for('document_download', did=d.id) }}">{{ d.filename }}</a></td><td>{{ d.uploaded_at|fr_date }}</td>
+    <td>{% if editable %}<form class="inline-form" method="post" action="{{ url_for('document_delete', did=d.id) }}" data-confirm="Supprimer cette pièce ?"><input type="hidden" name="csrf" value="{{ csrf() }}"><button class="btn small danger" type="submit">Supprimer</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>{% else %}<p class="muted">Aucune pièce.</p>{% endif %}
+  {% if editable %}
+  <form method="post" enctype="multipart/form-data" action="{{ url_for('document_upload', pid=p.id) }}" class="grid c3" style="align-items:end">
+    <input type="hidden" name="csrf" value="{{ csrf() }}">
+    <div><label for="doc_type">Type de pièce</label><select id="doc_type" name="doc_type">{% for k, v in DOC_TYPES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+    <div><label for="file">Fichier (5 Mo max)</label><input id="file" name="file" type="file" required accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"></div>
+    <div><button class="btn" type="submit">Ajouter</button></div>
+  </form>{% endif %}
+</div>
+
+{# ---------- Évaluation du comité ---------- #}
+{% if role in ('coordonnateur', 'evaluateur') and p.status not in ('brouillon', 'a_completer') or (role == 'coordonnateur' and evs) %}
+<div class="card"><h2>Évaluation du comité</h2>
+  {% if evs %}<div class="table-wrap"><table><thead><tr><th>Évaluateur</th>{% for k, l, w in CRITERES %}<th title="Pondération {{ w }} %">{{ l.split()[0] }} /5</th>{% endfor %}<th>Note /100</th><th>Commentaire</th></tr></thead><tbody>
+  {% for e in evs %}<tr><td>{{ e.evaluator }}</td>{% for k, l, w in CRITERES %}<td>{{ e[k] }}</td>{% endfor %}<td><strong>{{ scores[loop.index0] }}</strong></td><td class="small">{{ e.comment or '' }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p><strong>Note moyenne : {{ avg }} / 100</strong> <span class="muted small">({{ evs|length }} évaluation(s), minimum requis pour décider : {{ min_evals }})</span></p>
+  {% else %}<p class="muted">Aucune évaluation pour l'instant (minimum requis : {{ min_evals }}).</p>{% endif %}
+  {% if role == 'evaluateur' and p.status in ('soumis', 'en_evaluation', 'liste_attente') %}
+  <h3>{{ 'Modifier mon évaluation' if my_eval else 'Mon évaluation' }}</h3>
+  <form method="post" action="{{ url_for('project_evaluate', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    {% for k, l, w in CRITERES %}<div class="scale"><label for="c_{{ k }}" style="margin:0">{{ l }} <span class="muted small">(poids {{ w }} %)</span></label>
+      <select id="c_{{ k }}" name="{{ k }}" required>{% for n in range(6) %}<option value="{{ n }}" {{ 'selected' if my_eval and my_eval[k] == n }}>{{ n }}</option>{% endfor %}</select></div>{% endfor %}
+    <label for="comment">Commentaire</label><textarea id="comment" name="comment">{{ my_eval.comment if my_eval and my_eval.comment else '' }}</textarea>
+    <p><button class="btn" type="submit">Enregistrer mon évaluation</button></p></form>{% endif %}
+</div>
+{% endif %}
+
+{# ---------- Décision (coordonnateur) ---------- #}
+{% if role == 'coordonnateur' and p.status in ('soumis', 'en_evaluation', 'liste_attente') %}
+<div class="card"><h2>Décision du comité de sélection</h2>
+  <form method="post" action="{{ url_for('project_decide', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <div class="grid c2"><div><label for="decision">Décision</label><select id="decision" name="decision"><option value="accepte">Accepter en incubation</option><option value="liste_attente">Liste d'attente</option><option value="refuse">Refuser</option></select></div>
+    <div><label for="dcohort">Cohorte (si accepté)</label><input id="dcohort" name="cohort" type="text" placeholder="ex. 2026-B"></div></div>
+    <label for="motivation">Motivation (obligatoire, communiquée au porteur)</label><textarea id="motivation" name="motivation" required minlength="20"></textarea>
+    <p><button class="btn" type="submit">Enregistrer la décision</button></p></form>
+  {% if p.status in ('soumis', 'en_evaluation') %}
+  <h3>Ou renvoyer le dossier pour complément</h3>
+  <form method="post" action="{{ url_for('project_return', pid=p.id) }}" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <input name="motif" type="text" placeholder="Ce qui doit être complété" required minlength="10" style="flex:1">
+    <button class="btn secondary" type="submit">Renvoyer au porteur</button></form>{% endif %}
+</div>
+{% endif %}
+
+{# ---------- Mentor ---------- #}
+{% if p.status in ('incube', 'post_incubation') %}
+<div class="card"><h2>Mentorat</h2>
+  <p>Mentor : <strong>{{ p.mentor_name or 'non affecté' }}</strong></p>
+  {% if role == 'coordonnateur' %}
+  <form method="post" action="{{ url_for('assign_mentor', pid=p.id) }}" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <select name="mentor_id" aria-label="Mentor" style="width:auto">{% for m in mentors %}<option value="{{ m.id }}" {{ 'selected' if m.id == p.mentor_id }}>{{ m.name }}</option>{% endfor %}</select>
+    <button class="btn secondary" type="submit">{{ 'Changer de mentor' if p.mentor_id else 'Affecter' }}</button></form>
+  {% if p.status == 'incube' %}
+  <form method="post" action="{{ url_for('project_close', pid=p.id) }}" style="margin-top:.8rem" data-confirm="Clôturer l'incubation de ce projet ?"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <button class="btn secondary small" type="submit">Clôturer l'incubation (passer en post-incubation)</button></form>{% endif %}{% endif %}
+</div>
+
+{# ---------- Objectifs ---------- #}
+<div class="card table-wrap"><h2>Objectifs</h2>
+  {% if objectives %}<table><thead><tr><th>Objectif</th><th>Indicateur</th><th>Échéance</th></tr></thead><tbody>
+  {% for o in objectives %}<tr><td>{{ o.label }}</td><td>{{ o.indicator or '—' }}</td><td>{{ o.due_date|fr_date }}</td></tr>{% endfor %}</tbody></table>
+  {% else %}<p class="muted">Aucun objectif défini.</p>{% endif %}
+  {% if manage %}
+  <form method="post" action="{{ url_for('objective_add', pid=p.id) }}" class="grid c3" style="align-items:end"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <div><label for="olabel">Nouvel objectif</label><input id="olabel" name="label" type="text" required minlength="5"></div>
+    <div><label for="oind">Indicateur de réussite</label><input id="oind" name="indicator" type="text"></div>
+    <div><label for="odue">Échéance</label><input id="odue" name="due_date" type="date"></div>
+    <div><button class="btn secondary" type="submit">Ajouter l'objectif</button></div></form>{% endif %}
+</div>
+
+{# ---------- Jalons ---------- #}
+<div class="card table-wrap"><h2>Calendrier et jalons</h2>
+  {% if milestones %}
+  {% set done = milestones|selectattr('status', 'equalto', 'fait')|list|length %}
+  <p class="small muted">{{ done }} / {{ milestones|length }} jalons réalisés</p>
+  <div class="progress ok"><span style="width:{{ (done / milestones|length * 100)|round }}%"></span></div>
+  <table><thead><tr><th>Jalon</th><th>Échéance</th><th>Statut</th><th>Preuve</th><th>Mise à jour</th></tr></thead><tbody>
+  {% for m in milestones %}{% set late = m.status != 'fait' and m.due_date < today %}
+  <tr><td><strong>{{ m.title }}</strong>{% if m.objective %}<br><span class="small muted">Objectif : {{ m.objective }}</span>{% endif %}{% if m.description %}<br><span class="small">{{ m.description }}</span>{% endif %}</td>
+    <td>{{ m.due_date|fr_date }}</td>
+    <td><span class="status {{ m.status }}">{{ MILESTONE_STATUS[m.status] }}</span>{% if late %} <span class="status late">En retard</span>{% endif %}</td>
+    <td>{% if m.proof_stored %}<a href="{{ url_for('milestone_proof', mid=m.id) }}">{{ m.proof_name }}</a>{% else %}—{% endif %}</td>
+    <td>{% if manage or is_owner %}<form method="post" enctype="multipart/form-data" action="{{ url_for('milestone_update', mid=m.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+      <select name="status" aria-label="Statut du jalon {{ m.title }}">{% for k, v in MILESTONE_STATUS.items() %}<option value="{{ k }}" {{ 'selected' if m.status == k }}>{{ v }}</option>{% endfor %}</select>
+      <input type="file" name="proof" aria-label="Preuve pour {{ m.title }}" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg">
+      <button class="btn small secondary" type="submit" style="margin-top:.3rem">Mettre à jour</button></form>{% endif %}</td></tr>{% endfor %}
+  </tbody></table>
+  {% else %}<p class="muted">Aucun jalon défini.</p>{% endif %}
+  {% if manage %}
+  <form method="post" action="{{ url_for('milestone_add', pid=p.id) }}" class="grid c3" style="align-items:end"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <div><label for="mtitle">Nouveau jalon</label><input id="mtitle" name="title" type="text" required minlength="3"></div>
+    <div><label for="mdue">Échéance</label><input id="mdue" name="due_date" type="date" required></div>
+    <div><label for="mobj">Objectif lié</label><select id="mobj" name="objective_id"><option value="">—</option>{% for o in objectives %}<option value="{{ o.id }}">{{ o.label[:50] }}</option>{% endfor %}</select></div>
+    <div style="grid-column:1/-1"><label for="mdesc">Description</label><input id="mdesc" name="description" type="text"></div>
+    <div><button class="btn secondary" type="submit">Ajouter le jalon</button></div></form>{% endif %}
+</div>
+
+{# ---------- Suivis ---------- #}
+<div class="card"><h2>Suivi à 3 et 6 mois</h2>
+  {% for f in followups %}<div class="card" style="background:var(--tan-light)">
+    <div class="row between"><strong>Suivi à {{ f.kind.replace('_', ' ') }}</strong><span class="status {{ 'fait' if f.status == 'fait' else ('late' if f.due_date < today else 'a_faire') }}">{{ 'Réalisé le ' ~ (f.done_date|fr_date) if f.status == 'fait' else ('En retard - ' if f.due_date < today else 'Prévu le ') ~ (f.due_date|fr_date) }}</span></div>
+    {% if f.status == 'fait' %}<p class="small">Emplois : {{ f.jobs if f.jobs is not none else '—' }} · CA : {{ f.revenue if f.revenue is not none else '—' }} FCFA · Financement : {{ f.funding if f.funding is not none else '—' }} FCFA</p><p class="small">{{ f.notes or '' }}</p>{% endif %}
+    {% if manage and f.status != 'fait' %}<form method="post" action="{{ url_for('followup_save', fid=f.id) }}" class="grid c3"><input type="hidden" name="csrf" value="{{ csrf() }}">
+      <div><label for="jobs{{ f.id }}">Emplois créés</label><input id="jobs{{ f.id }}" name="jobs" type="number" min="0"></div>
+      <div><label for="rev{{ f.id }}">Chiffre d'affaires (FCFA)</label><input id="rev{{ f.id }}" name="revenue" type="number" min="0"></div>
+      <div><label for="fun{{ f.id }}">Financement obtenu (FCFA)</label><input id="fun{{ f.id }}" name="funding" type="number" min="0"></div>
+      <div style="grid-column:1/-1"><label for="notes{{ f.id }}">Notes</label><textarea id="notes{{ f.id }}" name="notes"></textarea></div>
+      <div><button class="btn small" type="submit">Enregistrer le suivi</button></div></form>{% endif %}
+  </div>{% else %}<p class="muted">Aucun suivi planifié.</p>{% endfor %}
+</div>
+{% endif %}
+
+{# ---------- Assistant IA ---------- #}
+{% if ai_enabled and (editable or p.status in ('incube', 'post_incubation')) %}
+<div class="card"><h2>Assistant d'écriture (IA générative)</h2>
+  <p class="small muted">Génère un <strong>brouillon</strong> à partir des informations du dossier. Relisez-le et corrigez-le : l'IA peut se tromper et n'est pas enregistrée dans votre dossier. Les générations sont journalisées.</p>
+  <form method="post" action="{{ url_for('ai_assist', pid=p.id) }}" class="row"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <select name="kind" aria-label="Type de texte" style="width:auto">
+      <option value="pitch">Pitch de 60 secondes</option><option value="swot">Analyse SWOT</option><option value="modele_eco">Modèle économique</option><option value="plan_action">Plan d'action à 90 jours</option>
+      {% if role != 'porteur' %}<option value="compte_rendu">Brouillon de compte rendu</option>{% endif %}</select>
+    <button class="btn" type="submit">Générer un brouillon</button></form>
+  {% if ai_output %}<h3>{{ ai_kind }}</h3>
+  <div class="aibox" id="ai-output">{{ ai_output[0] }}</div>
+  <p class="small muted">Mode : {{ 'Claude (API)' if ai_output[1] == 'claude' else 'gabarit local (aucune clé API configurée ou service indisponible)' }} · brouillon à vérifier avant tout usage.</p>{% endif %}
+</div>
+{% endif %}
+
+{# ---------- Commentaires ---------- #}
+<div class="card" id="commentaires"><h2>Commentaires</h2>
+  {% for c in comments %}<div class="comment"><strong>{{ c.author }}</strong> <span class="muted small">· {{ ROLES[c.role] }} · {{ c.created_at|fr_date }}</span><br>{{ c.body }}</div>
+  {% else %}<p class="muted">Aucun commentaire.</p>{% endfor %}
+  <form method="post" action="{{ url_for('comment_add', pid=p.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+    <label for="body">Ajouter un commentaire</label><textarea id="body" name="body" maxlength="2000" required></textarea>
+    <p><button class="btn secondary" type="submit">Publier</button></p></form>
+</div>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block title %}Utilisateurs{% endblock %}
+{% block content %}
+<h1>Utilisateurs</h1>
+<div class="grid c2">
+<div class="card"><h2>Créer un compte</h2>
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf() }}">
+  <label for="name">Nom complet</label><input id="name" name="name" type="text" required>
+  <label for="email">E-mail</label><input id="email" name="email" type="email" required>
+  <label for="role">Rôle</label><select id="role" name="role">{% for k, v in ROLES.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+  <label for="password">Mot de passe provisoire (8 caractères min.)</label><input id="password" name="password" type="password" minlength="8" required autocomplete="new-password">
+  <p><button class="btn" type="submit">Créer</button></p></form></div>
+<div class="card"><h2>Droits par rôle</h2><ul class="small">
+  <li><strong>Porteur</strong> : dépose et suit ses propres projets, met à jour ses jalons.</li>
+  <li><strong>Membre du comité</strong> : évalue les dossiers soumis (grille pondérée).</li>
+  <li><strong>Mentor</strong> : suit les projets qui lui sont affectés (objectifs, jalons, suivis).</li>
+  <li><strong>Coordonnateur</strong> : décide, affecte les mentors, gère les comptes, consulte tout et exporte.</li></ul></div>
+</div>
+<div class="card table-wrap"><table><thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th></th></tr></thead><tbody>
+{% for u in users %}<tr><td>{{ u.name }}</td><td>{{ u.email }}</td><td>{{ ROLES[u.role] }}</td><td>
+{% if u.id != g.user.id %}<form class="row" method="post" action="{{ url_for('user_role', uid=u.id) }}"><input type="hidden" name="csrf" value="{{ csrf() }}">
+<select name="role" aria-label="Rôle de {{ u.name }}" style="width:auto">{% for k, v in ROLES.items() %}<option value="{{ k }}" {{ 'selected' if u.role == k }}>{{ v }}</option>{% endfor %}</select>
+<button class="btn small secondary" type="submit">Changer</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% endblock %}

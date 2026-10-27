@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Tableau de bord{% endblock %}
+{% block content %}
+<div class="row between"><h1>Tableau de bord du coordonnateur</h1>
+<div class="row"><a class="btn secondary" href="{{ url_for('export_xlsx') }}">Export Excel</a><a class="btn secondary" href="{{ url_for('export_list_pdf') }}">Synthèse PDF</a></div></div>
+<form class="card row" method="get">
+  <div><label for="cohort">Cohorte</label><select id="cohort" name="cohort"><option value="">Toutes</option>{% for c in cohorts %}<option {{ 'selected' if cohort == c }}>{{ c }}</option>{% endfor %}</select></div>
+  <div><label for="domain">Domaine</label><select id="domain" name="domain"><option value="">Tous</option>{% for x in DOMAINES %}<option {{ 'selected' if domain == x }}>{{ x }}</option>{% endfor %}</select></div>
+  <div style="align-self:end"><button class="btn" type="submit">Appliquer</button></div>
+</form>
+<div class="grid c4">
+  <div class="card kpi"><div class="n">{{ d.total }}</div><div class="l">Projets déposés</div></div>
+  <div class="card kpi"><div class="n">{{ d.accepted }}</div><div class="l">En incubation / diplômés</div></div>
+  <div class="card kpi"><div class="n">{{ (d.acceptance_rate ~ ' %') if d.acceptance_rate is not none else '—' }}</div><div class="l">Taux d'acceptation (sur dossiers décidés)</div></div>
+  <div class="card kpi"><div class="n">{{ d.avg if d.avg is not none else '—' }}</div><div class="l">Note moyenne /100</div></div>
+</div>
+<div class="grid c2">
+<div class="card"><h2>Entonnoir de sélection</h2>
+  {% set mx = [d.total, 1]|max %}
+  {% for lab, v in [('Déposés', d.total), ('Soumis au comité', d.submitted), ('Décidés', d.decided), ('Acceptés', d.accepted)] %}
+  <div class="bar"><span>{{ lab }}</span><div class="track"><span style="width:{{ (v / mx * 100)|round }}%"></span></div><strong>{{ v }}</strong></div>{% endfor %}
+  <p class="small muted">Décidés = acceptés + refusés + liste d'attente.</p></div>
+<div class="card"><h2>Avancement des jalons</h2>
+  <p><strong>{{ d.ms.done or 0 }}</strong> réalisés sur <strong>{{ d.ms.total or 0 }}</strong>{% if d.ms_rate is not none %} ({{ d.ms_rate }} %){% endif %} · <span class="{{ 'status late' if d.ms.late }}">{{ d.ms.late or 0 }} en retard</span></p>
+  <div class="progress ok"><span style="width:{{ d.ms_rate or 0 }}%"></span></div>
+  <h3>Prochaines alertes</h3>
+  {% for m in late %}<div class="small"><a href="{{ url_for('project_detail', pid=m.pid) }}">{{ m.project }}</a> — {{ m.title }} ({{ m.due_date|fr_date }})</div>{% else %}<p class="small muted">Aucun retard.</p>{% endfor %}</div>
+</div>
+<div class="grid c2">
+<div class="card"><h2>Répartition par domaine</h2>
+  {% set mxd = (d.by_domain|map(attribute='c')|max) if d.by_domain else 1 %}
+  {% for r in d.by_domain %}<div class="bar"><span class="small">{{ r.d }}</span><div class="track dark"><span style="width:{{ (r.c / mxd * 100)|round }}%"></span></div><strong>{{ r.c }}</strong></div>{% else %}<p class="muted">Aucune donnée.</p>{% endfor %}</div>
+<div class="card"><h2>Répartition par statut</h2>
+  {% set mxs = (d.by_status.values()|max) if d.by_status else 1 %}
+  {% for k, v in d.by_status.items() %}<div class="bar"><span><span class="status {{ k }}">{{ STATUTS[k] }}</span></span><div class="track"><span style="width:{{ (v / mxs * 100)|round }}%"></span></div><strong>{{ v }}</strong></div>{% else %}<p class="muted">Aucune donnée.</p>{% endfor %}</div>
+</div>
+<div class="card table-wrap"><h2>Comparaison des cohortes</h2>
+<table><thead><tr><th>Cohorte</th><th>Projets</th><th>Acceptés</th><th>Part acceptée</th></tr></thead><tbody>
+{% for r in d.by_cohort %}<tr><td>{{ r.k }}</td><td>{{ r.total }}</td><td>{{ r.accepted or 0 }}</td><td>{{ ((r.accepted or 0) / r.total * 100)|round|int }} %</td></tr>{% endfor %}</tbody></table>
+<p class="small muted">Les cohortes ne sont pas filtrées par la sélection ci-dessus, afin de rester comparables.</p></div>
+<div class="grid c2">
+<div class="card table-wrap"><h2>Dossiers à traiter ({{ pending|length }})</h2>
+{% if pending %}<table><thead><tr><th>Projet</th><th>Soumis le</th><th>Évaluations</th></tr></thead><tbody>
+{% for p in pending %}<tr><td><a href="{{ url_for('project_detail', pid=p.id) }}">{{ p.title }}</a><br><span class="small muted">{{ p.owner }}</span></td><td>{{ p.submitted_at|fr_date }}</td>
+<td>{{ p.n_eval }} / {{ min_evals }} {% if p.n_eval >= min_evals %}<span class="status incube">prêt à décider</span>{% endif %}</td></tr>{% endfor %}</tbody></table>
+{% else %}<p class="muted">Aucun dossier en attente.</p>{% endif %}</div>
+<div class="card table-wrap"><h2>Suivi à 3 et 6 mois</h2>
+{% if d.followups %}<table><thead><tr><th>Suivi</th><th>Réalisés</th><th>Emplois</th><th>CA (FCFA)</th><th>Financement (FCFA)</th></tr></thead><tbody>
+{% for f in d.followups %}<tr><td>{{ f.kind.replace('_',' ') }}</td><td>{{ f.done }} / {{ f.total }}</td><td>{{ f.jobs }}</td><td>{{ '{:,}'.format(f.revenue).replace(',', ' ') }}</td><td>{{ '{:,}'.format(f.funding).replace(',', ' ') }}</td></tr>{% endfor %}</tbody></table>
+<p class="small muted">Totaux déclarés par les projets sur les suivis réalisés.</p>{% else %}<p class="muted">Aucun suivi planifié.</p>{% endif %}</div>
+</div>
+{% endblock %}

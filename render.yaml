@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: incubateur-ciat
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python seed.py && gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PRODUCTION
+        value: "1"
+      - key: ANTHROPIC_API_KEY   # facultatif : laisser vide pour le mode gabarit
+        sync: false
